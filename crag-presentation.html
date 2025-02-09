@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CRAG: Making RAG More Robust</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+        }
+        .slides-container {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        .slide {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            padding: 2rem;
+            box-sizing: border-box;
+            background: #fff;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .slide.active {
+            display: flex;
+            flex-direction: column;
+            opacity: 1;
+        }
+        .slide-content {
+            max-width: 1000px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        h1 {
+            font-size: 2.5rem;
+            color: #1a237e;
+            margin-bottom: 1.5rem;
+        }
+        h2 {
+            font-size: 2rem;
+            color: #303f9f;
+        }
+        .split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        .chart {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        .example {
+            background: #e3f2fd;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+        .controls {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            gap: 1rem;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: #1a237e;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #303f9f;
+        }
+        .progress {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: #1a237e;
+            transition: width 0.3s ease;
+        }
+        li {
+            margin: 0.5rem 0;
+            line-height: 1.5;
+        }
+        code {
+            background: #f5f5f5;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="progress"></div>
+    <div class="slides-container">
+        <!-- Slide 1: Title -->
+        <div class="slide active">
+            <div class="slide-content">
+                <h1>CRAG + <strike style="color: red;">SelfRAG</strike> - Making LLM's Doubt Themselves.</h1>
+                <h2>A Corrective Approach to Retrieval-Augmented Generation</h2>
+                <h2 style="color: black">Pankaj Doharey</h2>
+            </div>
+        </div>
+
+        <!-- Slide 2: The RAG Problem -->
+        <div class="slide">
+            <div class="slide-content">
+                <h1>The RAG Problem</h1>
+                <div class="split">
+                    <div>
+                        <h2>Ideal RAG Scenario</h2>
+                        <ul>
+                            <li>Query → Relevant Documents</li>
+                            <li>Accurate Information Retrieval</li>
+                            <li>Precise Response Generation</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h2>Reality</h2>
+                        <ul>
+                            <li>Query → Irrelevant Documents</li>
+                            <li>Poor Information Quality</li>
+                            <li>Potential Hallucinations</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+ <!-- Slide 3: Motivation -->
+        <div class="slide">
+            <div class="slide-content">
+                <h1>Motivation</h1>
+                <div class="example">
+                    <h3>Example Query:</h3>
+                    <code>Q: "I’m in London and facing west, is Edinburgh to my left or my right?"</code>
+                    <p>Retrieved: A simple geography question!</p>
+                    <p>In this scenario, it's a classic case of directional thinking.
+                        Since you're facing west, which means you're looking at the western edge of London,
+                        and Edinburgh is located on the opposite side of the UK (i.e., in Scotland),
+                        your answer would be:
+
+                    </p>
+                    <p>Edinburgh to your left. </p>
+                    <p>Response: "Hamm" [Incorrect due to irrelevant retrieval]</p>
+                </div>
+                <h3>Key Issues:</h3>
+                <ul>
+                    <li>RAG blindly trusts retrieved documents</li>
+                    <li>No mechanism to detect poor retrieval</li>
+                    <li>Errors propagate to generation</li>
+                </ul>
+            </div>
+        </div>
+
+
+
+
+
+
+
+
+        <!-- Slide 3: Motivation -->
+        <div class="slide">
+            <div class="slide-content">
+                <h1>Motivation</h1>
+                <div class="example">
+                    <h3>Example Query:</h3>
+                    <code>Q: "… Now the farmer can safely leave the wolf with the goat because the cabbage is no longer a threat. …"</code>
+                    <p>Retrieved: A clever play on words!</p>
+                    <p>The phrase "the cabbage is no longer a threat" is a pun on the fact that cabbages are typically green and have a
+                        strong, pungent smell (like a sheep's stomach). The farmer has successfully eliminated the wolf as a predator
+                        by using the cabbage as a deterrent.
+                    </p>
+                    <p>Well played!</p>
+                </div>
+                <h3>Key Issues:</h3>
+                <ul>
+                    <li>Confidently Wrong!</li>
+                </ul>
+            </div>
+        </div>
+
+
+      <!-- Slide 3: Motivation -->
+        <div class="slide">
+            <div class="slide-content">
+                <h1>Motivation</h1>
+                <div class="example">
+                    <h3>Example Query:</h3>
+                    <code>Q: "Count the number of occurrences of the letter ’L’ in the word -’LOLLAPALOOZA’"</code>
+                    <p>Retrieved: Let me count the occurrences of the letter 'L'...</p>
+                    <p>L O L L P There are 5 occurrences of the letter 'L' in the word "LOLLAPALOOZA".
+                    </p>
+                    <p></p>
+                </div>
+                <h3>Key Issues:</h3>
+                <ul>
+                    <li>Confidently wrong!</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Slide 4: CRAG Architecture -->
+        <div class="slide">
+            <div class="slide-content">
+                <h1>Introducing CRAG</h1>
+                <div class="chart">
+                    <h2>Core Components</h2>
+                    <ul>
+                        <li>Lightweight Retrieval Evaluator
+                            <ul>
+                                <li>T5-based model (770M parameters)</li>
+                                <li>Evaluates document relevance</li>
+                            </ul>
+                        </li>
+                        <li>Smart Action Trigger System
+                            <ul>
+                                <li>Correct, Incorrect, or Ambiguous actions</li>
+                                <li>Based on confidence scores</li>
+                            </ul>
+                        </li>
+                        <li>Dual Knowledge Sources
+                            <ul>
+                                <li>Internal document refinement</li>
+                                <li>External web search</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: How CRAG Works -->
+        <div class="slide">
+            <div class="slide-content">
+                <h1>How CRAG Works</h1>
+                <div class="split">
+                    <div>
+                        <h2>Action Flow</h2>
+                        <ul>
+                            <li>Evaluate Retrieved Documents</li>
+                            <li>Determine Confidence Score</li>
+                            <li>Trigger Appropriate Action</li>
+                        </ul>
+
+
+                        <img src="crag.png" style="width:800px;=height: 600px"/>
+                    </div>
+                    <div>
+                        <h2>Actions</h2>
+                        <ul>
+                            <li>Correct: Refine existing knowledge</li>
+                            <li>Incorrect: Web search for alternatives</li>
+                            <li>Ambiguous: Combine both approaches</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: Results -->
+        <div class="slide">
+            <div class="slide-content">
+                <h1>Results</h1>
+                <div class="chart">
+                    <h2>Improvements over standard RAG:</h2>
+                    <img src="sragvscrag.png" style="width:800px;=height: 600px"/>
+                    <p>selfRAG vs CRAG</p>
+                    <ul>
+                        <li>PopQA: +7.0% accuracy</li>
+                        <li>Biography: +14.9% FactScore</li>
+                        <li>PubHealth: +36.6% accuracy</li>
+                        <li>Arc-Challenge: +15.4% accuracy</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: Key Takeaways -->
+        <div class="slide">
+            <div class="slide-content">
+                <h1>Key Takeaways</h1>
+                <ul>
+                    <li>Plug-and-play solution for existing RAG systems</li>
+                    <li>Lightweight implementation (T5-based evaluator)</li>
+                    <li>Significant reduction in hallucination</li>
+                    <li>Robust handling of poor retrieval results</li>
+                    <li>Flexible knowledge sourcing strategy</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Slide 8: Thank You -->
+        <div class="slide">
+            <div class="slide-content">
+                <h1>Thank You</h1>
+                <h2>CRAG: Corrective Retrieval Augmented Generation</h2>
+                <p>Paper Reference: arXiv:2401.15884v3</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button onclick="prevSlide()">Previous</button>
+        <button onclick="nextSlide()">Next</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const progressBar = document.querySelector('.progress');
+
+        function updateProgress() {
+            const progress = ((currentSlide + 1) / slides.length) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
+
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + slides.length) % slides.length;
+            slides[currentSlide].classList.add('active');
+            updateProgress();
+        }
+
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+
+        function prevSlide() {
+            showSlide(currentSlide - 1);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+        });
+
+        updateProgress();
+    </script>
+</body>
+</html>
